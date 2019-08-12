@@ -7,6 +7,10 @@ import numpy
 import multiprocessing
 from urllib.request import urlopen
 
+# import PIL
+# import PIL.Image
+# import PIL.ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 def download_cutout(coord_queue, out_dir, format='jpg'):
 
@@ -17,7 +21,7 @@ def download_cutout(coord_queue, out_dir, format='jpg'):
             coord_queue.task_done()
             break
 
-        ra,dec = cmd
+        ra,dec,label = cmd
         print(ra,dec)
 
 # http://ps1images.stsci.edu/cgi-bin/fitscut.cgi?
@@ -60,9 +64,32 @@ def download_cutout(coord_queue, out_dir, format='jpg'):
             return None
         cutout_data = response.read()
 
-        output_fn = "cutout_%09.5f%+08.5f.jpg" % (ra, dec)
+        final_fn = "cutout_%s__%09.5f%+08.5f.jpg" % (label.replace(" ", "_"), ra, dec)
+        output_fn = "rawcutout_%s__%09.5f%+08.5f.jpg" % (label.replace(" ", "_"), ra, dec)
         with open(output_fn, "wb") as of:
             of.write(cutout_data)
+
+        # now open the raw version of the file and add the label etc
+        img = Image.open(output_fn)
+        font = ImageFont.truetype("/usr/share/fonts/truetype/DroidSans.ttf", 24)
+            #"arial.pil")
+        draw = ImageDraw.Draw(img)
+        pad = 3
+        draw.text(xy=(pad,pad), text=label, font=font)
+
+        radec_text = "%.5f%+.5f" % (ra,dec)
+        dim = font.getsize(radec_text)
+        # print(dim)
+        imgsize = img.getbbox()
+        if (imgsize is not None):
+            x0,y0,x1,y1 = imgsize
+        else:
+            x0,y0,x1,y1 = 0,0,0,0
+        # print(imgsize)
+        dimx,dimy = dim
+        draw.text(xy=(x1-dimx-pad, y1-dimy-pad), text=radec_text, font=font)
+
+        img.save(final_fn)
 
         coord_queue.task_done()
 
@@ -73,11 +100,25 @@ if __name__ == "__main__":
     fov = float(sys.argv[2])
 
 
-    coords = numpy.loadtxt(coord_fn)
     coord_queue = multiprocessing.JoinableQueue()
+    with open(coord_fn, "r") as cf:
+        cflines = cf.readlines()
+    for line in cflines:
+        if line.startswith("#"):
+            continue
+        items = line.split()
+        ra = float(items[0])
+        dec = float(items[1])
+        try:
+            label = " ".join(items[2:])
+        except:
+            label = ""
+        #
+        # coords = numpy.loadtxt(coord_fn)
+        # for coord in coords:
+        print(label)
+        coord_queue.put((ra, dec, label))
 
-    for coord in coords:
-        coord_queue.put((coord[0], coord[1]))
         # break
     print("all done queuing up coordinates")
 
