@@ -72,7 +72,7 @@ def resolve_name_to_radec(objname):
 
 
 
-def query(ra,dec):
+def query(ra,dec, dump=False):
 
     url = "http://ps1images.stsci.edu/cgi-bin/ps1filenames.py?ra=%.3f&dec=%.3f&filters=griz&type=stack,stack.wt" % (ra, dec)
 
@@ -81,7 +81,12 @@ def query(ra,dec):
     if (response.getcode() != 200):
         return None
 
-    ps_string = response.read()
+    ps_string = response.read().decode("utf-8")
+
+    if (dump):
+        dumpfile = "dump__%010.6f%+011.6f" % (ra, dec)
+        with open(dumpfile, "w") as df:
+            df.write(str(ps_string))
 
     ps_data = []
     for line in ps_string.splitlines()[1:]:
@@ -94,8 +99,8 @@ def query(ra,dec):
                         items[4], #filter
 #                       items[5], #mjd
                         items[6], #type
-                        items[7], #filename
-                        items[8], #shortname
+                        str(items[7]), #filename
+                        str(items[8]), #shortname
                         ])
 
     return ps_data
@@ -156,7 +161,7 @@ def create_panstarrs_filelist(target_ra, target_dec, radius, wget_filename):
 
     with open(wget_filename, "w") as wget:
         for fa in final_answer:
-            print("wget -O %s.fz http://ps1images.stsci.edu/%s" % (fa[7], fa[6]),
+            print("wget -O %s.fz https://ps1images.stsci.edu/%s" % (str(fa[7]), str(fa[6])),
                   file=wget)
 
 
